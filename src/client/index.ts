@@ -8,7 +8,9 @@
  * domain, addressed by the reference the section names.
  */
 
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+// Type-only: pulls the connection plugin's Context merge (ctx.connection), which
+// still carries the legacy credentials face on older harnesses.
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the settings shell's ctx.settingsScope Context merge. Cross-plugin
@@ -23,6 +25,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import './slot-contract.ts'
 import { TavilyCard } from './TavilyCard.tsx'
 
+import { createCredentialsFace } from './credentials-face.ts'
 import { TAVILY_NS, TavilyCardController } from './tavily-card-controller.ts'
 import { en, zh } from './locales.ts'
 import { injectCardStyles } from './styles.ts'
@@ -70,19 +73,36 @@ export function apply(ctx: ClientContext): void {
   const settingsScope = ctxAny.settingsScope ?? viaGet('settingsScope')
   if (!settingsScope) throw new Error('[dsh-plugin-tavily] settingsScope service unavailable')
 
-  const { api } = connection as ConnectionHandle
+  const credentials = createCredentialsFace()
+  credentials.adoptLegacyNamespace((connection as { api?: { credentials?: unknown } } | undefined)?.api?.credentials)
+  // The credentials domain is a remote namespace from the 0.1.2 line on and a
+  // connection face before that. A plugin may only read the namespace after
+  // declaring it, and declaring it in the static inject list would park this
+  // plugin on harnesses where no such namespace exists — so it is injected
+  // dynamically, and the legacy face serves those harnesses in the meantime.
+  ctx.inject(['remote.credentials'], (scoped) => {
+    const namespace = (scoped as unknown as { remote?: { credentials?: unknown } }).remote?.credentials
+    credentials.adoptRemoteNamespace(namespace)
+  })
   ctx.effect(() => locale.register(NS, { zh, en }), 'web-search-tavily: card dictionaries')
   ctx.effect(() => injectCardStyles(), 'web-search-tavily: card styles')
 
-  const controller = new TavilyCardController(settingsScope.bind({ namespace: TAVILY_NS }), api)
+  const controller = new TavilyCardController(settingsScope.bind({ namespace: TAVILY_NS }), credentials)
 
   // The credential a card reports is not part of any settings section, so its
   // scope publishes nothing when one is written. This is the only signal that
-  // a key written on another surface reached the Host.
-  ctx.effect(
-    () => remote.$on('credentials/updated', (ref: string) => { controller.refreshCredential(ref) }),
-    'web-search-tavily: credential invalidations',
-  )
+  // a key written on another surface reached the Host. The event was renamed
+  // with the face (`credentials/updated` → `credentials/reference-updated`), so
+  // both names are subscribed and whichever the harness emits is caught.
+  ctx.effect(() => {
+    const events = remote as unknown as {
+      $on(event: string, listener: (ref: string) => void): () => void
+    }
+    const disposers = ['credentials/reference-updated', 'credentials/updated'].map(
+      (event) => events.$on(event, (ref: string) => { controller.refreshCredential(ref) }),
+    )
+    return () => { for (const dispose of disposers) dispose() }
+  }, 'web-search-tavily: credential invalidations')
 
   // One registration, both slot contracts. `settings.plugin.item` shipped as a
   // LIST slot in the published rc.6 runtime (register requires `id`; built-ins

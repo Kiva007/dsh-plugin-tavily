@@ -23,8 +23,8 @@
  * covers everything the card shows.
  */
 
-import type { IApiClient } from '@deepseek-ai/dsh-client-connection/client'
 import type { SettingsScope, SettingsScopeSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { CredentialView, CredentialsFace } from './credentials-face.ts'
 import {
   booleanField, CardForm, listField, numberField, selectField, textField, valueSelectField,
   type CardActions, type CardFieldState, type CardShell,
@@ -329,11 +329,11 @@ export class TavilyCardController {
 
   /**
    * @param scope - the bound settings scope for the `web-search-tavily` namespace.
-   * @param api - wire face used for the credential the section references.
+   * @param credentials - credential face used for the reference the section names.
    */
   constructor(
     private readonly scope: SettingsScope<TavilySettings>,
-    private readonly api: Pick<IApiClient, 'credentials'>,
+    private readonly credentials: CredentialsFace,
   ) {
     this.form = new CardForm(
       scope,
@@ -440,16 +440,15 @@ export class TavilyCardController {
       this.credential = { ref, configured: false, writable: true }
       this.store.set(this.projection())
     }
-    let response: Awaited<ReturnType<IApiClient['credentials']['describe']>>
+    let view: CredentialView | undefined
     try {
-      response = await this.api.credentials.describe({ refs: [ref] })
+      view = await this.credentials.describe(ref)
     } catch (_credentialReadFailure) {
       // The card stays usable without this: the key control simply reports the
       // last state it knew, and a write still reaches the Host.
       return
     }
-    if (!response.result.ok || ref !== refOf(this.scope.getSnapshot())) return
-    const view = response.result.value.credentials[ref]
+    if (ref !== refOf(this.scope.getSnapshot())) return
     const next: CredentialState = {
       ref,
       configured: view?.configured ?? false,
@@ -701,7 +700,7 @@ export class TavilyCardController {
    */
   private async writeKey(value: string): Promise<boolean> {
     try {
-      await this.api.credentials.set({ ref: refOf(this.scope.getSnapshot()), value })
+      await this.credentials.set(refOf(this.scope.getSnapshot()), value)
     } catch (_credentialWriteFailure) {
       // Refusals surface through the re-read below: the Host is the only
       // authority on whether the key now exists.
