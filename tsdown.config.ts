@@ -32,6 +32,10 @@ const CLIENT_EXTERNALS = [
   '@deepseek-ai/dsh-client-ui-primitives',
   '@deepseek-ai/dsh-client-ui-attachment',
   '@deepseek-ai/dsh-client-schema-form',
+  // The store factory moved from the runtime package to its own one inside the
+  // 0.1.2 line; ./src/client/store-module.ts probes both specifiers at runtime,
+  // so both must stay external (a bundled copy defeats the seam).
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-runtime/client',
 ]
 

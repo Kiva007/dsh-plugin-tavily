@@ -26,6 +26,9 @@ importers:
       '@deepseek-ai/dsh-client-runtime':
         specifier: '>=0.1.0-rc.6'
         version: 0.1.0-rc.6(9b9cc316d8840c207092351c825bdfdb)
+      '@deepseek-ai/dsh-client-store':
+        specifier: '>=0.1.2-alpha.2'
+        version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.1)(@types/react@18.3.31)(react@18.2.0)
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: '>=0.1.0-rc.6'
         version: 0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1))
@@ -417,6 +420,11 @@ packages:
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
       '@deepseek-ai/dsh-invariants': ^0.1.0-rc.6
+
+  '@deepseek-ai/dsh-client-store@0.1.2-alpha.2':
+    resolution: {integrity: sha512-tz94GO4b8m3PPe/knfNjHa/VeTJTDNgN1eZeQWHjb5kKxCCThlNk91y5z/kEC93oGVd0lphq5pG5aQCQr2364g==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ^4.0.2
 
   '@deepseek-ai/dsh-client-ui-primitives@0.1.0-rc.6':
     resolution: {integrity: sha512-vZ9/V5pXYbkumLEOHagEjzSWvVxX+CtXZ13+iNz3BnqDVsy0HYLgnrWwcLLPHqHLUmww9NlxXe9husoS7o/zyw==}
@@ -2560,6 +2568,7 @@ packages:
 
   koffi@3.1.4:
     resolution: {integrity: sha512-KHX39XIg7afe8ds+0MHPoLiKR9dCzsVK4oAmBUSaeJlcX0xur22f15C2DILbZ6GJ9eyqC+e6Sb1cTG7M17z+Tg==}
+    deprecated: Unstable Windows builds
 
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
@@ -3697,6 +3706,15 @@ snapshots:
       '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-invariants': 0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)
       '@deepseek-ai/schemastery': 3.18.1
+
+  '@deepseek-ai/dsh-client-store@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.1)(@types/react@18.3.31)(react@18.2.0)':
+    dependencies:
+      '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      immer: 10.1.1
+      zustand: 4.4.7(@types/react@18.3.31)(immer@10.1.1)(react@18.2.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - react
 
   '@deepseek-ai/dsh-client-ui-primitives@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.6(@deepseek-ai/cordis@4.0.1))':
     dependencies:

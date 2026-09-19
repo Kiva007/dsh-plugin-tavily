@@ -23,8 +23,12 @@
  * product's cards share is mirrored here at the size this card needs.
  */
 
+// Type-only: the settings scope face is compile-time input, resolved from the
+// repo devDependency; the runtime specifier that carries the *store* factory is
+// handled by ./store-module, which probes both eras of the module table.
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { loadStoreModule } from './store-module'
 
 /** The write one field's staged text performs when the card is saved. */
 export type FieldWrite =
@@ -311,7 +315,7 @@ export class CardForm<T> {
    * @returns the store the card's component reads through its bound selector.
    */
   bind<S>(project: () => S): SnapshotStore<S> {
-    const store = createSnapshotStore(project())
+    const store = loadStoreModule().createSnapshotStore(project())
     this.listeners.add(() => { store.set(project()) })
     return store
   }
