@@ -18,7 +18,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+// Namespace import on purpose — see {@link settingsModule}. Up to dsh-settings
+// 0.1.1-rc.2 this module exported the standalone `installSettingsSection` /
+// `settingsNamespace` helpers; 0.1.2-alpha.2 removed both. A *named* import of a
+// since-removed export is an ESM link error, so importing them by name would
+// make the plugin unloadable on every newer harness.
+import * as dshSettings from '@deepseek-ai/dsh-settings'
 import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@deepseek-ai/dsh-web'
 // Type-only: pulls the ctx.webServer Context merge so the probe route is typed.
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -208,8 +213,50 @@ export const Config: z<Config> = z.object({
   engine: z.union(['tavily', 'deepseek'] as const).description('Answer web_search with Tavily (keyless if no key) or the official DeepSeek provider.'),
 })
 
-/** Settings namespace carrying this provider's endpoint, depth, topic, and key reference. */
-export const WEB_SEARCH_TAVILY_SETTINGS_NAMESPACE = settingsNamespace('web-search-tavily')
+/**
+ * Settings-seam adapter across the `dsh-settings` API break.
+ *
+ * Up to `dsh-settings` 0.1.1-rc.2 a consumer registered its section with two
+ * standalone exports: `settingsNamespace(name)`, which branded a raw string as
+ * a `SettingsNamespace`, and `installSettingsSection(ctx, ns, schema, entry,
+ * hooks)`. From 0.1.2-alpha.2 on **both are gone**: the same install is a method
+ * on the settings service — `ctx.settings.installSection(owner, ns, schema,
+ * entry, hooks)`, identical argument list — and the namespace is the plain
+ * lowercase-kebab string the service validates itself.
+ *
+ * Both eras are served from one artifact: the module arrives as a namespace
+ * (so a version that dropped the legacy exports still links) and the surface is
+ * probed at {@link apply} time.
+ */
+interface SettingsSectionInstall {
+  <T>(owner: Context, ns: string, schema: z<T>, entry: T, hooks: SettingsSectionHooks<T>): void
+}
+
+/** Hooks every era of the install takes. */
+interface SettingsSectionHooks<T> {
+  setSource: (current: () => T) => void
+  onChange: () => void
+}
+
+/** The `settings` service as seen from a context that injected it. */
+interface SettingsService {
+  installSection: SettingsSectionInstall
+}
+
+/** The pre-0.1.2-alpha.2 module surface; both members are absent on newer ones. */
+interface LegacySettingsModule {
+  installSettingsSection?: SettingsSectionInstall
+  settingsNamespace?: (name: string) => string
+}
+
+const settingsModule = dshSettings as unknown as LegacySettingsModule
+
+/**
+ * Settings namespace carrying this provider's endpoint, depth, topic, and key
+ * reference. `settingsNamespace()` only brands the string when that helper
+ * exists; without it the raw string is exactly what the settings service wants.
+ */
+export const WEB_SEARCH_TAVILY_SETTINGS_NAMESPACE = settingsModule.settingsNamespace?.('web-search-tavily') ?? 'web-search-tavily'
 
 /**
  * Project a resolved section into the options the provider serves its next
@@ -364,14 +411,29 @@ function resolveFirecrawlOptions(ctx: Context, config: Config, entry: Config): F
 export function apply(ctx: Context, config: Config): void {
   const entry = config
   let current: () => Config = () => config
-  installSettingsSection(ctx, WEB_SEARCH_TAVILY_SETTINGS_NAMESPACE, Config, config, {
+  const hooks: SettingsSectionHooks<Config> = {
     setSource: (source) => {
       current = source
     },
     // The registration carries no resolved value: the provider projects the
     // section per search, so a committed change needs no re-registration.
     onChange: () => {},
-  })
+  }
+  const installLegacy = settingsModule.installSettingsSection
+  if (installLegacy !== undefined) {
+    // dsh-settings <= 0.1.1-rc.2: the standalone helper attaches to the
+    // `settings` service when one is mounted and no-ops otherwise.
+    installLegacy(ctx, WEB_SEARCH_TAVILY_SETTINGS_NAMESPACE, Config, config, hooks)
+  } else {
+    // dsh-settings >= 0.1.2-alpha.2: install through the settings service. The
+    // injected context (and the same owner ctx the legacy helper took) mirrors
+    // the official dsh-web-search-deepseek provider, and keeps this plugin
+    // loadable in a profile that never mounts `settings`.
+    ctx.inject(['settings'], (settingsCtx) => {
+      const settings = (settingsCtx as unknown as { settings: SettingsService }).settings
+      settings.installSection(ctx, WEB_SEARCH_TAVILY_SETTINGS_NAMESPACE, Config, config, hooks)
+    })
+  }
   const provider = new TavilySearchProvider(
     () => resolveOptions(ctx, current(), entry),
     // When the card's engine switch is `deepseek`, answer through the official

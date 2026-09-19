@@ -80,6 +80,7 @@
     "build": "tsdown --config ./tsdown.config.ts",
     "test": "node tests/smoke.mjs",
     "test:contract": "node tests/slot-contract-compat.mjs",
+    "test:settings-api": "node tests/settings-api-compat.mjs",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT"

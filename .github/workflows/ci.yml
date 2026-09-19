@@ -58,6 +58,39 @@ jobs:
       - name: Contract test against SlotCore ${{ matrix.slots }}
         run: SLOTS_PACKAGE_DIR=/tmp/slots-matrix/node_modules pnpm run test:contract
 
+  # The settings seam broke inside the 0.1.x line: `installSettingsSection` and
+  # `settingsNamespace` were standalone exports up to 0.1.1-rc.2 and are gone
+  # from 0.1.2-alpha.2 on, where the same install is the settings service's
+  # `installSection` method. A named import of a dropped export is an ESM link
+  # error, so the shipped artifact has to serve both surfaces; the repo's own
+  # devDependency (0.1.0-rc.6) pins the legacy shape, the scratch prefix pins
+  # the post-break shape.
+  settings-api-compat:
+    name: settings seam vs real dsh-settings (${{ matrix.settings }})
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        settings: ['0.1.1-rc.2', '0.1.5-rc.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm build
+      - name: Settings-seam compat against the repo devDependency (legacy shape)
+        run: pnpm run test:settings-api
+      - name: Install dsh-settings ${{ matrix.settings }} into a scratch prefix
+        run: npm install --prefix /tmp/settings-matrix --no-save --no-package-lock @deepseek-ai/dsh-settings@${{ matrix.settings }}
+      - name: Settings-seam compat against dsh-settings ${{ matrix.settings }}
+        run: SETTINGS_PACKAGE_DIR=/tmp/settings-matrix/node_modules pnpm run test:settings-api
+
   # Install→serve wiring against real dsh releases (the CLI ships its own
   # platform, so each leg boots a self-consistent runtime). Boots headless,
   # fetches the served client bundle, and asserts the dual-field card
